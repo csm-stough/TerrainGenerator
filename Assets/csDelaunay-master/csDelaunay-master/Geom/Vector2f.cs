@@ -45,7 +45,7 @@ public struct Vector2f {
 			return false;
 		}
 		Vector2f v = (Vector2f) other;
-		return MathF.Abs(v.magnitude - this.magnitude) < 0.000055f;
+		return MathF.Abs(v.magnitude - this.magnitude) < 0.00005f;
 	}
 	
 	public override string ToString () {

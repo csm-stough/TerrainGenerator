@@ -1,54 +1,48 @@
+using csDelaunay;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class Polygon
 {
-
-    private List<Polygon> child_polygons;
-
-    public List<csDelaunay.LineSegment> edges;
+    public List<LineSegment> edges;
     public List<Vector2f> vertices;
 
     float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
 
     public Polygon(List<Vector2f> vertices)
     {
-        if(vertices.Count < 3)
+        if (vertices.Count < 3)
         {
             UnityEngine.Debug.Log("Attempting to create a polygon with less than 3 vertices!");
             return;
         }
         this.vertices = vertices;
-        this.edges = new List<csDelaunay.LineSegment>();
+        this.edges = new List<LineSegment>();
 
         List<Vector2Int> indices = new List<Vector2Int>();
 
         indices.Add(new Vector2Int(0, 1));
 
-        for(int v = 1; v < vertices.Count; v++)
+        for (int v = 1; v < vertices.Count; v++)
         {
             indices.Add(new Vector2Int(v, (v + 1) % vertices.Count));
-        }        
+        }
 
         foreach (Vector2Int e in indices)
         {
-            edges.Add(new csDelaunay.LineSegment(vertices[e.x], vertices[e.y]));
+            edges.Add(new LineSegment(vertices[e.x], vertices[e.y]));
         }
 
         CreateBounds();
-        child_polygons = new List<Polygon>();
-        child_polygons.Add(this);
     }
 
-    public Polygon(List<Vector2f> vertices, List<csDelaunay.LineSegment> edges)
+    public Polygon(List<Vector2f> vertices, List<LineSegment> edges)
     {
         this.vertices = vertices;
         this.edges = edges;
 
         CreateBounds();
-        child_polygons = new List<Polygon>();
-        child_polygons.Add(this);
     }
 
     private void CreateBounds()
@@ -69,18 +63,6 @@ public class Polygon
 
     public bool isPointInside(Vector2f p)
     {
-        foreach(Polygon poly in child_polygons)
-        {
-            if(poly.pointInside(p))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private bool pointInside(Vector2f p)
-    {
         int counter = 0;
         int i;
         double xinters;
@@ -88,19 +70,19 @@ public class Polygon
 
         p1 = vertices[0];
 
-        for(i = 1; i <= vertices.Count; i++)
+        for (i = 1; i <= vertices.Count; i++)
         {
             p2 = vertices[i % vertices.Count];
-            if(p.y > Mathf.Min(p1.y, p2.y))
+            if (p.y > Mathf.Min(p1.y, p2.y))
             {
-                if(p.y <= Mathf.Max(p1.y, p2.y))
+                if (p.y <= Mathf.Max(p1.y, p2.y))
                 {
-                    if(p.x <= Mathf.Max(p1.x, p2.x))
+                    if (p.x <= Mathf.Max(p1.x, p2.x))
                     {
-                        if(p1.y != p2.y)
+                        if (p1.y != p2.y)
                         {
                             xinters = (p.y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y) + p1.x;
-                            if(p1.x == p2.x || p.x <= xinters)
+                            if (p1.x == p2.x || p.x <= xinters)
                             {
                                 counter++;
                             }
@@ -110,7 +92,7 @@ public class Polygon
             }
             p1 = p2;
         }
-        if(counter % 2 == 0)
+        if (counter % 2 == 0)
         {
             return false;
         }
@@ -120,7 +102,7 @@ public class Polygon
         }
     }
 
-    public float DistanceToSegment(Vector2f p, csDelaunay.LineSegment line)
+    public static float DistanceToSegment(Vector2f p, LineSegment line)
     {
         float l2 = Vector2f.DistanceSquare(line.p0, line.p1);
         if (l2 == 0.0) { return Vector2f.Distance(line.p1, p); }
@@ -129,18 +111,18 @@ public class Polygon
         return Vector2f.Distance(p, proj);
     }
 
-    public csDelaunay.LineSegment getNearestEdge(Vector2f p)
+    public LineSegment getNearestEdge(Vector2f p)
     {
 
-        csDelaunay.LineSegment nearest = null;
+        LineSegment nearest = null;
         float dist = float.MaxValue;
 
-        foreach(csDelaunay.LineSegment ls in edges)
+        foreach (LineSegment ls in edges)
         {
             float d;
-            if((d = DistanceToSegment(p, ls)) < dist)
+            if ((d = DistanceToSegment(p, ls)) < dist)
             {
-                if(d < dist)
+                if (d < dist)
                 {
                     nearest = ls;
                     dist = d;
@@ -151,13 +133,12 @@ public class Polygon
         return nearest;
     }
 
-    public List<Polygon> getChildren()
+    public bool IsNeighbor(Polygon poly)
     {
-        return child_polygons;
-    }
-
-    public void AddChildren(List<Polygon> polys)
-    {
-        child_polygons.AddRange(polys);
+        foreach(LineSegment ls in poly.edges)
+        {
+            if(edges.Contains(ls)) { return true; }
+        }
+        return false;
     }
 }

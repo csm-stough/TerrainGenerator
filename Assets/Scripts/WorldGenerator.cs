@@ -7,19 +7,30 @@ using System.Linq;
 [RequireComponent(typeof(Renderer))]
 public class WorldGenerator : MonoBehaviour
 {
-
+    /*
     public Vector2Int WorldSize;
     public int RegionCount;
     public int LloydIterations;
-    public Color c1;
-    public Color c2;
+    public Color lowAltitude;
+    public Color middleAltitude;
+    public Color highAltitude;
+    public float noiseScale;
+
+    [Range(0, 1)]
+    public float oceanLandThreshold;
+    [Range(0, 1)]
+    public float landMountainThreshold;
+    public float mountainHeightScale;
+    public float oceanDepthScale;
 
     private Voronoi voronoi;
+    private Vector2f offset;
     List<Vector2f> originalSites;
     List<Vector2f> relaxedSites;
     Rectf bounds;
     Texture2D tx;
     Dictionary<Vector2f, Region> regions;
+    Dictionary<Polygon, List<Region>> polygons;
 
     float AveArea;
 
@@ -36,8 +47,11 @@ public class WorldGenerator : MonoBehaviour
         relaxedSites = voronoi.SiteCoords();
         tx = new Texture2D(WorldSize.x, WorldSize.y);
         AveArea = (WorldSize.x * WorldSize.y) / RegionCount;
+        offset = new Vector2f(Random.Range(-100, 100), Random.Range(-100, 100));
+        AssetManager.setRegionMap(voronoi);
 
-        AltitudeTest();
+        GenerateRegions();
+        GenerateAltitudeMap();
         ApplyTexture();
     }
 
@@ -46,11 +60,27 @@ public class WorldGenerator : MonoBehaviour
 
         regions = new Dictionary<Vector2f, Region>();
 
-        foreach(Site site in voronoi.SitesIndexedByLocation.Values)
+        foreach (Site site in voronoi.SitesIndexedByLocation.Values)
         {
             Region reg = new Region(site);
             regions.Add(site.Coord, reg);
         }
+    }
+
+    private void GenerateAltitudeMap()
+    {
+        //Create a very low frequency noise map to define the general shape of the world
+        
+        foreach (Region region in regions.Values)
+        {
+            Vector2f position = region.getSite().Coord;
+            float alt = Mathf.PerlinNoise(position.x * noiseScale + offset.x, position.y * noiseScale + offset.y);
+            RegionType rt = alt > landMountainThreshold ? RegionType.MOUNTAIN :
+                (alt > oceanLandThreshold ? RegionType.LAND : RegionType.OCEAN);
+            region.setRegionType(rt);
+        }
+
+        MergeTerrainRegions();
     }
 
     public void DrawBorders()
@@ -113,27 +143,28 @@ public class WorldGenerator : MonoBehaviour
         }
     }
 
-    private void DrawPolygon(Polygon p)
+    private void DrawPolygon(Polygon p, Color col)
     {
         foreach(LineSegment ls in p.edges)
         {
-            DrawLine(ls.p0, ls.p1, tx, Color.black);
+            DrawLine(ls.p0, ls.p1, tx, col);
         }
     }
 
-    private void AltitudeTest()
+    private void ShadePolygon(Polygon p, Color col)
     {
-        List<Vector2f> vertices = voronoi.Region(voronoi.SiteCoords()[0]);
-        Polygon polygon = new Polygon(vertices);
+        Rectf bbox = p.getBoundingBox();
 
-        for(int i = 1; i < RegionCount; i++)
+        for (int y = (int)bbox.bottom; y > bbox.top; y--)
         {
-            List<Vector2f> verts = voronoi.Region(voronoi.SiteCoords()[i]);
-            polygon = MergePolygons(polygon, new Polygon(verts));
+            for (int x = (int)bbox.left; x < bbox.right; x++)
+            {
+                if (p.isPointInside(new Vector2f(x, y)))
+                {
+                    tx.SetPixel(x, y, col);
+                }
+            }
         }
-
-        DrawPolygon(polygon);
-        Mountain(polygon);
     }
 
     private void Mountain(Polygon p)
@@ -149,7 +180,42 @@ public class WorldGenerator : MonoBehaviour
                     Vector2f point = new Vector2f(x, y);
                     LineSegment nearest = p.getNearestEdge(point);
                     float dist = p.DistanceToSegment(point, nearest);
-                    tx.SetPixel(x, y, Color.Lerp(c1, c2, dist / (AveArea / 5f)));
+                    tx.SetPixel(x, y, Color.LerpUnclamped(middleAltitude, highAltitude, dist / (AveArea / mountainHeightScale)));
+                }
+            }
+        }
+    }
+
+    private void Land(Polygon p)
+    {
+        Rectf bbox = p.getBoundingBox();
+
+        for (int y = (int)bbox.bottom; y > bbox.top; y--)
+        {
+            for (int x = (int)bbox.left; x < bbox.right; x++)
+            {
+                if (p.isPointInside(new Vector2f(x, y)))
+                {
+                    tx.SetPixel(x, y, middleAltitude);
+                }
+            }
+        }
+    }
+
+    private void Ocean(Polygon p)
+    {
+        Rectf bbox = p.getBoundingBox();
+
+        for (int y = (int)bbox.bottom; y > bbox.top; y--)
+        {
+            for (int x = (int)bbox.left; x < bbox.right; x++)
+            {
+                if (p.isPointInside(new Vector2f(x, y)))
+                {
+                    Vector2f point = new Vector2f(x, y);
+                    LineSegment nearest = p.getNearestEdge(point);
+                    float dist = p.DistanceToSegment(point, nearest);
+                    tx.SetPixel(x, y, Color.Lerp(middleAltitude, lowAltitude, dist / (AveArea / oceanDepthScale)));
                 }
             }
         }
@@ -175,9 +241,53 @@ public class WorldGenerator : MonoBehaviour
         all_verts = all_verts.Distinct().ToList<Vector2f>();
 
         Polygon merged = new Polygon(all_verts, all_edges);
-        merged.AddChildren(p1.getChildren());
-        merged.AddChildren(p2.getChildren());
 
         return merged;
     }
+
+    private List<Region> getNeighborRegions(Region region)
+    {
+        List<Region> neighbors = new List<Region>();
+        List<Vector2f> neighbor_sites = region.getNeighbors();
+        foreach(Vector2f site in neighbor_sites)
+        {
+            neighbors.Add(regions[site]);
+        }
+        return neighbors;
+    }
+
+    private void MergeTerrainRegions()
+    {
+        Polygon merged = BFS(regions.Values.First());
+        Mountain(merged);
+    }
+
+    private Polygon BFS(Region region)
+    {
+        Stack<Region> region_queue = new Stack<Region>();
+        region_queue.Push(region);
+        RegionType type = region.getRegionType();
+        Polygon base_gon = new Polygon(region.getPolygon().vertices);
+
+        while(region_queue.Count > 0)
+        {
+            Region curr_region = region_queue.Pop();
+            
+            foreach(Region neighbor in getNeighborRegions(curr_region))
+            {
+                if(!neighbor.merged)
+                {
+                    if (neighbor.getRegionType() == type && Polygon.AreNeighbors(curr_region.getPolygon(), neighbor.getPolygon()))
+                    {
+                        neighbor.merged = true;
+                        base_gon = MergePolygons(base_gon, neighbor.getPolygon());
+                        region_queue.Push(neighbor);
+                    }
+                }
+            }
+        }
+
+        return base_gon;
+    }
+    */
 }
