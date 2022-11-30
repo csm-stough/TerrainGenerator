@@ -6,9 +6,12 @@ using csDelaunay;
 public class ComplexPolygon
 {
 
-    private List<Vector2f> vertices;
-    private List<LineSegment> edges;
-    private List<Polygon> polygons;
+    public RegionType type;
+
+    public List<Vector2f> vertices { get; private set; }
+    public List<LineSegment> edges { get; private set; }
+    public List<Polygon> polygons { get; private set; }
+    public Rectf bounds { get; private set; }
 
     public ComplexPolygon()
     {
@@ -25,7 +28,6 @@ public class ComplexPolygon
         }
         return false;
     }
-
     public void AddPolygon(Polygon poly)
     {
         if(polygons.Contains(poly)) { return; }
@@ -50,8 +52,8 @@ public class ComplexPolygon
                 edges.Add(ls);
             }
         }
+        UpdateBounds();
     }
-
     public bool IsNeighbor(Polygon poly)
     {
         foreach(Polygon child in polygons)
@@ -63,9 +65,34 @@ public class ComplexPolygon
         }
         return false;
     }
-
-    public List<Polygon> getChildren()
+    public LineSegment getNearestEdge(Vector2f point)
     {
-        return polygons;
+        float dist = float.MaxValue;
+        LineSegment nearest = null;
+
+        foreach(LineSegment edge in edges)
+        {
+            float edgeDistance = Polygon.DistanceToSegment(point, edge);
+            if(edgeDistance < dist)
+            {
+                dist = edgeDistance;
+                nearest = edge;
+            }
+        }
+
+        return nearest;
+    }
+
+    private void UpdateBounds()
+    {
+        float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+        foreach (Vector2f v in vertices)
+        {
+            if (v.x < minX) { minX = v.x; }
+            if (v.x > maxX) { maxX = v.x; }
+            if (v.y < minY) { minY = v.y; }
+            if (v.y > maxY) { maxY = v.y; }
+        }
+        bounds = new Rectf(minX, minY, maxX - minX, maxY - minY);
     }
 }

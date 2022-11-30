@@ -10,14 +10,12 @@ public class Region
     Voronoi map;
     private Site site;
     private Polygon polygon;
-    public bool merged;
 
     public Region(Site site)
     {
         map = AssetManager.regionMap;
         this.site = site;
         polygon = new Polygon(map.Region(site.Coord));
-        merged = false;
     }
 
     public void setRegionType(RegionType rt)
