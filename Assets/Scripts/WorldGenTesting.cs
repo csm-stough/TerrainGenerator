@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using csDelaunay;
 using System.Linq;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(Renderer))]
 
@@ -13,13 +14,37 @@ public class WorldGenTesting : MonoBehaviour
 
     public int regionCount;
     public Vector2Int worldSize;
+    public int LloydIterations;
 
     public Color HighAltitude;
     public Color MiddleAltitude;
     public Color LowAltitude;
+    
+    public Color WaterColor;
+    public Color LandColor;
+    public Color MountainColor;
 
     public float landMountainThreshold;
     public float oceanLandThreshold;
+
+    public float Redistribution;
+
+    public float noiseScale;
+    public float heightScale;
+    public int Octaves;    
+
+    //public TerrainMeshGenerator terrainGenerator;
+    public GameObject Map;
+
+    float[,] heightData;
+
+    private void Update()
+    {
+        if(Input.GetButtonDown("Enter"))
+        {
+            Start();
+        }
+    }
 
     void Start()
     {
@@ -28,11 +53,13 @@ public class WorldGenTesting : MonoBehaviour
         tx.wrapMode = TextureWrapMode.Clamp;
         tx.filterMode = FilterMode.Bilinear;
 
+        heightData = new float[size.x+1, size.y+1];
+
         ///////////TESTING CODE/////////////
 
         List<Vector2f> points = CreateRandomPoint(regionCount, size);
         Rectf bounds = new Rectf(0, 0, size.x, size.y);
-        Voronoi voronoi = new Voronoi(points, bounds, 3);
+        Voronoi voronoi = new Voronoi(points, bounds, LloydIterations);
 
         List<TerrainRegion> terrainRegions = CreateTerrainRegions(voronoi);
         CreateTerrainRegionNeighbors(terrainRegions, voronoi);
@@ -52,12 +79,41 @@ public class WorldGenTesting : MonoBehaviour
                     Mountain(cpoly);
                     break;
             }
-            DrawCPoly(cpoly, Color.black);
         }
 
         ////////////////////////////////////
 
         ApplyTexture();
+
+        heightData = PostProcessHeightmap(heightData);
+
+        //terrainGenerator.Generate(heightmap);
+
+        //Set the map texture
+    }
+
+    private float[,] PostProcessHeightmap(float[,] heightData)
+    {
+        for(int y = 0; y < heightData.GetLength(0); y++)
+        {
+            for(int x = 0; x < heightData.GetLength(1); x++)
+            {
+                heightData[x, y] += getOctavedNoise(x, y);
+            }
+        }
+
+        return heightData;
+    }
+
+    private float getOctavedNoise(int x, int y)
+    {
+        float total = 0.0f;
+        for(int i = 0; i < Octaves; i++)
+        {
+            float mul = Mathf.Pow(1, i);
+            total += Mathf.PerlinNoise(x * mul, y * mul);
+        }
+        return total / Octaves;
     }
 
     class TerrainRegion
@@ -70,12 +126,13 @@ public class WorldGenTesting : MonoBehaviour
 
     private List<TerrainRegion> CreateTerrainRegions(Voronoi voronoi)
     {
+        Debug.Log("Creating Map Structure...");
         Vector2f offset = new Vector2f(Random.Range(-100f, 100f), Random.Range(-100f, 100f));
         List<TerrainRegion> terrainRegions = new List<TerrainRegion>();
         foreach(Vector2f site in voronoi.SiteCoords())
         {
             TerrainRegion tr = new TerrainRegion();
-            float alt = Mathf.PerlinNoise(site.x * 0.01f + offset.x, site.y * 0.01f + offset.y);
+            float alt = Mathf.PerlinNoise(site.x * noiseScale + offset.x, site.y * noiseScale + offset.y);
             tr.type = alt > landMountainThreshold ? RegionType.MOUNTAIN :
                 (alt > oceanLandThreshold ? RegionType.LAND : RegionType.OCEAN);
             tr.polygon = new Polygon(voronoi.Region(site));
@@ -87,7 +144,9 @@ public class WorldGenTesting : MonoBehaviour
 
     private void CreateTerrainRegionNeighbors(List<TerrainRegion> regions, Voronoi voronoi)
     {
-        foreach(TerrainRegion region in regions)
+        Debug.Log("Establishing Neighbors...");
+
+        foreach (TerrainRegion region in regions)
         {
             region.neighbors = new List<TerrainRegion>();
             List<Vector2f> neighborSites = voronoi.NeighborSitesForSite(region.site);
@@ -97,6 +156,9 @@ public class WorldGenTesting : MonoBehaviour
 
     private List<ComplexPolygon> MergeTerrain(List<TerrainRegion> regions)
     {
+
+        Debug.Log("Merging Regions...");
+
         List<ComplexPolygon> terrainPolygons = new List<ComplexPolygon>();
 
         if(regions.Count == 0) { return terrainPolygons; }
@@ -105,6 +167,7 @@ public class WorldGenTesting : MonoBehaviour
 
         while(regions.Count > 0)
         {
+            Debug.Log("Remaining regions: " + regions.Count);
             TerrainRegion currRegion = regions[0];
             ComplexPolygon currPoly = new ComplexPolygon();
 
@@ -150,7 +213,8 @@ public class WorldGenTesting : MonoBehaviour
                     Vector2f point = new Vector2f(x, y);
                     LineSegment nearest = p.getNearestEdge(point);
                     float dist = Polygon.DistanceToSegment(point, nearest);
-                    tx.SetPixel(x, y, Color.Lerp(MiddleAltitude, HighAltitude, dist / 40f));
+                    heightData[x, y] = -dist;
+                    tx.SetPixel(x, y, Color.LerpUnclamped(MiddleAltitude, HighAltitude, dist / 60f) * MountainColor);
                 }
             }
         }
@@ -165,7 +229,8 @@ public class WorldGenTesting : MonoBehaviour
             {
                 if (p.IsInside(new Vector2f(x, y)))
                 {
-                    tx.SetPixel(x, y, MiddleAltitude);
+                    heightData[x, y] = 0f;
+                    tx.SetPixel(x, y, MiddleAltitude * LandColor);
                 }
             }
         }
@@ -183,7 +248,8 @@ public class WorldGenTesting : MonoBehaviour
                     Vector2f point = new Vector2f(x, y);
                     LineSegment nearest = p.getNearestEdge(point);
                     float dist = Polygon.DistanceToSegment(point, nearest);
-                    tx.SetPixel(x, y, Color.Lerp(MiddleAltitude, LowAltitude, dist / 60f));
+                    heightData[x, y] = dist;
+                    tx.SetPixel(x, y, Color.LerpUnclamped(MiddleAltitude, LowAltitude, dist / 40) * WaterColor);
                 }
             }
         }
@@ -238,7 +304,7 @@ public class WorldGenTesting : MonoBehaviour
     public void ApplyTexture()
     {
         tx.Apply();
-        GetComponent<Renderer>().material.mainTexture = tx;
+        Map.GetComponent<RawImage>().material.SetTexture("_MainTex", tx);
     }
     private void DrawLine(Vector2f p0, Vector2f p1, Texture2D tx, Color c, int offset = 0)
     {

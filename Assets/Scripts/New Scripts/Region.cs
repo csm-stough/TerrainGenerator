@@ -7,15 +7,18 @@ public enum RegionType { LAND, OCEAN, MOUNTAIN };
 public class Region
 {
     private RegionType regionType;
-    Voronoi map;
-    private Site site;
+    private Vector2f site;
     private Polygon polygon;
+    private List<Region> neighbors;
 
-    public Region(Site site)
+    //Region Weather Properties
+    public float precipitation;
+    public float temperature;
+
+    public Region(Vector2f site)
     {
-        map = AssetManager.regionMap;
         this.site = site;
-        polygon = new Polygon(map.Region(site.Coord));
+        neighbors = new List<Region>();
     }
 
     public void setRegionType(RegionType rt)
@@ -28,7 +31,7 @@ public class Region
         return regionType;
     }
 
-    public Site getSite()
+    public Vector2f getSite()
     {
         return this.site;
     }
@@ -43,8 +46,18 @@ public class Region
         this.polygon = p;
     }
 
-    public List<Vector2f> getNeighbors()
+    public List<Region> getNeighbors()
     {
-        return map.NeighborSitesForSite(site.Coord);
+        return this.neighbors;
+    }
+
+    public void AddNeighbor(Region reg)
+    {
+        this.neighbors.Add(reg);
+    }
+
+    public void AddNeighbors(List<Region> regs)
+    {
+        this.neighbors.AddRange(regs);
     }
 }
