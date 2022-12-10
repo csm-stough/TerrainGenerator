@@ -304,11 +304,13 @@ MonoBehaviour:
   RegionCount: 1000
   worldSize: {x: 1000, y: 1000}
   maxPrecipitation: 100
-  precipitationFalloffPercent: 0.075
-  mountainPrecipitationBoostPercent: 0.1
+  precipitationFalloffPercent: 0.1
+  mountainPrecipitationBoostPercent: 0
+  maxTemperature: 100
+  dateTempModifier: 1
   Octaves: 1
   LloydIterations: 3
-  NoiseScale: 0.001
+  NoiseScale: 0.0025
   oceanLandThreshold: 0.4
   landMountainThreshold: 0.6
 --- !u!4 &144766009
@@ -865,7 +867,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Zones
+  m_text: Biomes
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

@@ -27,6 +27,7 @@ public class WorldVisualizer : MonoBehaviour
 
         DrawRegionTypes(world);
         DrawPrecipitation(world);
+        DrawTemperature(world);
         DrawZones(world);
 
         ApplyTexture();
@@ -43,10 +44,28 @@ public class WorldVisualizer : MonoBehaviour
 
     private void DrawZones(World world)
     {
-        foreach(Zone zone in world.zones)
+        foreach(Region reg in world.regions)
         {
-            Color zone_col = zone.regions[0].getRegionType() == RegionType.OCEAN ? Color.blue : zone.regions[0].getRegionType() == RegionType.LAND ? Color.green : Color.gray;
-            ShadeCPoly(zone_tx, zone.region_area, zone_col);
+            Color col = Color.white;
+            switch(reg.biome)
+            {
+                case Biome.OCEAN:
+                    col = Color.blue;
+                    break;
+                case Biome.FOREST:
+                    col = Color.green * 0.75f;
+                    break;
+                case Biome.PLAINS:
+                    col = Color.green;
+                    break;
+                case Biome.MOUNTAINS:
+                    col = Color.gray;
+                    break;
+                case Biome.DESERT:
+                    col = Color.yellow * 0.75f;
+                    break;
+            }
+            ShadePolygon(zone_tx, reg.getPolygon(), col);
         }
     }
 
@@ -55,6 +74,14 @@ public class WorldVisualizer : MonoBehaviour
         foreach(Region reg in world.regions)
         {
             ShadePolygon(precip_tx, reg.getPolygon(), Color.Lerp(Color.red, Color.blue, reg.precipitation / (float)world.maxPrecipitation));
+        }
+    }
+
+    private void DrawTemperature(World world)
+    {
+        foreach(Region reg in world.regions)
+        {
+            ShadePolygon(temp_tx, reg.getPolygon(), Color.Lerp(Color.blue, Color.red, (reg.temperature) / world.maxTemperature));
         }
     }
 

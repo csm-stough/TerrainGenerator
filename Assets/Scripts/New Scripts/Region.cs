@@ -12,8 +12,10 @@ public class Region
     private List<Region> neighbors;
 
     //Region Weather Properties
+    public float altitude;
     public float precipitation;
     public float temperature;
+    public Biome biome;
 
     public Region(Vector2f site)
     {

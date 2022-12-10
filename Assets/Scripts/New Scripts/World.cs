@@ -11,6 +11,9 @@ public class World
     //World Properties
     public Vector2Int worldSize;
     public float maxPrecipitation;
+    public float maxTemperature;
+    public float poleTemp;
+    public float poleDistance;
 
     public World()
     {

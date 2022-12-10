@@ -16,6 +16,9 @@ public class WorldObjectGenerator : MonoBehaviour
     public float precipitationFalloffPercent;
     public float mountainPrecipitationBoostPercent;
 
+    public float maxTemperature;
+    public float dateTempModifier;
+
     //World Noise Options
     public int Octaves;
     public int LloydIterations;
@@ -41,10 +44,13 @@ public class WorldObjectGenerator : MonoBehaviour
         world = new World();
         world.worldSize = worldSize;
         world.maxPrecipitation = maxPrecipitation;
+        world.maxTemperature = maxTemperature;
 
         CreateTerrainRegions(world);
         CreateTerrainRegionNeighbors(world);
         CreatePrecipitationMap(world);
+        CreateTemperatureMap(world);
+        CreateBiomeMap(world);
 
         Debug.Log(world.regions.Count);
 
@@ -78,6 +84,7 @@ public class WorldObjectGenerator : MonoBehaviour
             reg.setRegionType(alt > landMountainThreshold ? RegionType.MOUNTAIN :
                 (alt > oceanLandThreshold ? RegionType.LAND : RegionType.OCEAN));
             reg.setPolygon(new Polygon(voronoi.Region(site)));
+            reg.altitude = alt;
 
             world.regions.Add(reg);
         }
@@ -145,5 +152,45 @@ public class WorldObjectGenerator : MonoBehaviour
             currPrecipitation -= precipitationFalloffPercent * maxPrecipitation;
             stack_index++;
         }
+    }
+
+    void CreateTemperatureMap(World world)
+    {
+        foreach (Region reg in world.regions)
+        {
+            reg.temperature = world.maxTemperature - (reg.getSite().y/world.worldSize.y) * world.maxTemperature;
+            reg.temperature *= (reg.precipitation * dateTempModifier / maxPrecipitation);
+        }
+    }
+
+    void CreateBiomeMap(World world)
+    {
+        foreach(Region reg in world.regions)
+        {
+            reg.biome = determineBiome(reg);
+        }
+    }
+
+    private Biome determineBiome(Region region)
+    {
+        if(region.getRegionType() == RegionType.OCEAN)
+        {
+            return Biome.OCEAN;
+        }
+        if(region.getRegionType() == RegionType.MOUNTAIN)
+        {
+            return Biome.MOUNTAINS;
+        }
+        if(region.temperature > world.maxTemperature * 0.75f && region.precipitation < world.maxPrecipitation * 0.35f)
+        {
+            return Biome.DESERT;
+        }
+
+        if(region.precipitation > world.maxPrecipitation * 0.25f && (region.temperature > world.maxTemperature * 0.25f && region.temperature < world.maxTemperature * 0.65f) && region.altitude > 0.45f)
+        {
+            return Biome.FOREST;
+        }
+
+        return Biome.PLAINS;
     }
 }
