@@ -7,84 +7,25 @@ using UnityEngine.UI;
 public class WorldVisualizer : MonoBehaviour
 {
 
-    private Texture2D precip_tx;
-    private Texture2D temp_tx;
-    private Texture2D zone_tx;
-    private Texture2D regionType_tx;
+    public TMPro.TMP_Dropdown dropdown;
 
-    public RawImage Precipitation;
-    public RawImage Temperature;
-    public RawImage Regions;
-    public RawImage Zones;
+    public List<Material> Materials;
 
-    public void DrawWorld(World world)
+    private WorldTerrainMesher mesher;
+
+    private void Start()
     {
-
-        precip_tx = new Texture2D(world.worldSize.x, world.worldSize.y);
-        temp_tx = new Texture2D(world.worldSize.x, world.worldSize.y);
-        zone_tx = new Texture2D(world.worldSize.x, world.worldSize.y);
-        regionType_tx = new Texture2D(world.worldSize.x, world.worldSize.y);
-
-        DrawRegionTypes(world);
-        DrawPrecipitation(world);
-        DrawTemperature(world);
-        DrawZones(world);
-
-        ApplyTexture();
+        mesher = GetComponent<WorldTerrainMesher>();
     }
 
-    private void DrawRegionTypes(World world)
+    public void OnLayerSelection()
     {
-        foreach(Region reg in world.regions)
-        {
-            Color reg_color = reg.getRegionType() == RegionType.OCEAN ? Color.blue : reg.getRegionType() == RegionType.LAND ? Color.green : Color.gray;
-            ShadePolygon(regionType_tx, reg.getPolygon(), reg_color);
-        }
+        mesher.UpdateMaterials((Layer)dropdown.value, Materials[dropdown.value]);
     }
 
-    private void DrawZones(World world)
-    {
-        foreach(Region reg in world.regions)
-        {
-            Color col = Color.white;
-            switch(reg.biome)
-            {
-                case Biome.OCEAN:
-                    col = Color.blue;
-                    break;
-                case Biome.FOREST:
-                    col = Color.green * 0.75f;
-                    break;
-                case Biome.PLAINS:
-                    col = Color.green;
-                    break;
-                case Biome.MOUNTAINS:
-                    col = Color.gray;
-                    break;
-                case Biome.DESERT:
-                    col = Color.yellow * 0.75f;
-                    break;
-            }
-            ShadePolygon(zone_tx, reg.getPolygon(), col);
-        }
-    }
+    /**OLD CODE
 
-    private void DrawPrecipitation(World world)
-    {
-        foreach(Region reg in world.regions)
-        {
-            ShadePolygon(precip_tx, reg.getPolygon(), Color.Lerp(Color.red, Color.blue, reg.precipitation / (float)world.maxPrecipitation));
-        }
-    }
-
-    private void DrawTemperature(World world)
-    {
-        foreach(Region reg in world.regions)
-        {
-            ShadePolygon(temp_tx, reg.getPolygon(), Color.Lerp(Color.blue, Color.red, (reg.temperature) / world.maxTemperature));
-        }
-    }
-
+    /*
     private void DrawCPoly(Texture2D tx, ComplexPolygon cpoly, Color col)
     {
         foreach (LineSegment edge in cpoly.edges)
@@ -127,15 +68,10 @@ public class WorldVisualizer : MonoBehaviour
 
     public void ApplyTexture()
     {
-        precip_tx.Apply();
+        moist_tx.Apply();
         temp_tx.Apply();
         regionType_tx.Apply();
         zone_tx.Apply();
-
-        Precipitation.texture = precip_tx;
-        Temperature.texture = temp_tx;
-        Regions.texture = regionType_tx;
-        Zones.texture = zone_tx;
     }
 
     private void DrawLine(Vector2f p0, Vector2f p1, Texture2D tx, Color c, int offset = 0)
@@ -169,4 +105,6 @@ public class WorldVisualizer : MonoBehaviour
             }
         }
     }
+    */
+
 }

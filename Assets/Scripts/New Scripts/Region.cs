@@ -13,7 +13,7 @@ public class Region
 
     //Region Weather Properties
     public float altitude;
-    public float precipitation;
+    public float moisture;
     public float temperature;
     public Biome biome;
 
@@ -21,6 +21,12 @@ public class Region
     {
         this.site = site;
         neighbors = new List<Region>();
+    }
+
+    public void unload()
+    {
+        neighbors = null;
+        polygon = null;
     }
 
     public void setRegionType(RegionType rt)

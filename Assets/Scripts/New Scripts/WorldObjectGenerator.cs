@@ -12,12 +12,14 @@ public class WorldObjectGenerator : MonoBehaviour
     public Vector2Int worldSize;
 
     //Precipitation
-    public float maxPrecipitation;
-    public float precipitationFalloffPercent;
-    public float mountainPrecipitationBoostPercent;
+    [Range(10f, 100f)]
+    public float maxMoisture;
+    [Range(0.01f, 1f)]
+    public float moistureFalloffPercent;
+    [Range(0f, 1f)]
+    public float mountainMoistureBoostPercent;
 
     public float maxTemperature;
-    public float dateTempModifier;
 
     //World Noise Options
     public int Octaves;
@@ -31,19 +33,36 @@ public class WorldObjectGenerator : MonoBehaviour
     private World world;
 
     private WorldVisualizer worldVisualizer;
+    private WorldTerrainMesher worldMesher;
+
+    public static World worldObject;
+
 
     // Start is called before the first frame update
     void Start()
     {
+        Generate();
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    public void Generate()
+    {
+
+        if(world != null)
+            UnloadWorld();
+
         //Create normalized voronoi object and scale to WorldSize
         List<Vector2f> points = CreateRandomPoints(RegionCount);
         Rectf bounds = new Rectf(0, 0, worldSize.x, worldSize.y);
         voronoi = new Voronoi(points, bounds, LloydIterations);
+
         worldVisualizer = GetComponent<WorldVisualizer>();
+        worldMesher = GetComponent<WorldTerrainMesher>();
 
         world = new World();
         world.worldSize = worldSize;
-        world.maxPrecipitation = maxPrecipitation;
+        world.maxMoisture = maxMoisture;
         world.maxTemperature = maxTemperature;
 
         CreateTerrainRegions(world);
@@ -52,14 +71,23 @@ public class WorldObjectGenerator : MonoBehaviour
         CreateTemperatureMap(world);
         CreateBiomeMap(world);
 
-        Debug.Log(world.regions.Count);
-
-        worldVisualizer.DrawWorld(world);
-
-        Debug.Log("DONE!");
+        WorldObjectGenerator.worldObject = this.world;
+        
+        worldMesher.GenerateMesh();
+               
     }
 
-    ////////////////////////////////////////////////////////////////
+    private void UnloadWorld()
+    {
+        for(int reg = 0; reg < world.regions.Count; reg++)
+        {
+            world.regions[reg].unload();
+            world.regions[reg] = null;
+        }
+
+        world.regions = null;
+        world.zones = null;
+    }
 
     private List<Vector2f> CreateRandomPoints(int count)
     {
@@ -106,50 +134,50 @@ public class WorldObjectGenerator : MonoBehaviour
     private void CreatePrecipitationMap(World world)
     {
 
-        foreach(Region ocean in world.regions.FindAll(reg => reg.getRegionType() == RegionType.OCEAN))
+        foreach (Region ocean in world.regions.FindAll(reg => reg.getRegionType() == RegionType.OCEAN))
         {
-            ocean.precipitation = maxPrecipitation;
+            ocean.moisture = maxMoisture;
         }
 
-        world.beaches = world.regions.FindAll(reg => reg.getRegionType() == RegionType.LAND && reg.getNeighbors().FindAll(neighbor => neighbor.getRegionType() == RegionType.OCEAN).Count > 0);
+        List<Region> beaches = world.regions.FindAll(reg => reg.getRegionType() == RegionType.LAND && reg.getNeighbors().FindAll(neighbor => neighbor.getRegionType() == RegionType.OCEAN).Count > 0);
 
         Queue<Region> region_stack_1 = new Queue<Region>();
         Queue<Region> region_stack_2 = new Queue<Region>();
 
         Queue<Region>[] stacks = new Queue<Region>[] { region_stack_1, region_stack_2 };
 
-        foreach(Region beach in world.beaches)
+        foreach (Region beach in beaches)
         {
             region_stack_1.Enqueue(beach);
         }
 
         int stack_index = 0;
-        float currPrecipitation = maxPrecipitation;
+        float currPrecipitation = maxMoisture * 0.75f;
 
 
-        while(stacks[stack_index % 2].Count > 0)
+        while (stacks[stack_index % 2].Count > 0)
         {
             while (stacks[stack_index % 2].Count > 0)
             {
                 Region currRegion = stacks[stack_index % 2].Dequeue();
 
-                currRegion.precipitation = currPrecipitation;
+                currRegion.moisture = currPrecipitation;
 
                 if (currRegion.getRegionType() == RegionType.MOUNTAIN)
                 {
-                    currRegion.precipitation += mountainPrecipitationBoostPercent * maxPrecipitation;
+                    currRegion.moisture += mountainMoistureBoostPercent * maxMoisture;
                 }
 
                 foreach (Region neighbor in currRegion.getNeighbors())
                 {
-                    if (neighbor.precipitation == 0f && neighbor.getRegionType() != RegionType.OCEAN)
+                    if (neighbor.moisture == 0f && neighbor.getRegionType() != RegionType.OCEAN)
                     {
                         stacks[(stack_index + 1) % 2].Enqueue(neighbor);
                     }
                 }
             }
 
-            currPrecipitation -= precipitationFalloffPercent * maxPrecipitation;
+            currPrecipitation -= moistureFalloffPercent * maxMoisture;
             stack_index++;
         }
     }
@@ -158,14 +186,14 @@ public class WorldObjectGenerator : MonoBehaviour
     {
         foreach (Region reg in world.regions)
         {
-            reg.temperature = world.maxTemperature - (reg.getSite().y/world.worldSize.y) * world.maxTemperature;
-            reg.temperature *= (reg.precipitation * dateTempModifier / maxPrecipitation);
+            reg.temperature = world.maxTemperature - (reg.getSite().y / world.worldSize.y) * world.maxTemperature;
+            reg.temperature *= ((reg.moisture * 0.5f) / maxMoisture);
         }
     }
 
     void CreateBiomeMap(World world)
     {
-        foreach(Region reg in world.regions)
+        foreach (Region reg in world.regions)
         {
             reg.biome = determineBiome(reg);
         }
@@ -173,20 +201,20 @@ public class WorldObjectGenerator : MonoBehaviour
 
     private Biome determineBiome(Region region)
     {
-        if(region.getRegionType() == RegionType.OCEAN)
+        if (region.getRegionType() == RegionType.OCEAN)
         {
             return Biome.OCEAN;
         }
-        if(region.getRegionType() == RegionType.MOUNTAIN)
+        if (region.getRegionType() == RegionType.MOUNTAIN)
         {
             return Biome.MOUNTAINS;
         }
-        if(region.temperature > world.maxTemperature * 0.75f && region.precipitation < world.maxPrecipitation * 0.35f)
+        if (region.temperature > world.maxTemperature * 0.75f && region.moisture < world.maxMoisture * 0.45f)
         {
             return Biome.DESERT;
         }
 
-        if(region.precipitation > world.maxPrecipitation * 0.25f && (region.temperature > world.maxTemperature * 0.25f && region.temperature < world.maxTemperature * 0.65f) && region.altitude > 0.45f)
+        if (region.moisture > world.maxMoisture * 0.25f && (region.temperature > world.maxTemperature * 0.25f && region.temperature < world.maxTemperature * 0.65f) && region.altitude > 0.45f)
         {
             return Biome.FOREST;
         }
@@ -194,3 +222,4 @@ public class WorldObjectGenerator : MonoBehaviour
         return Biome.PLAINS;
     }
 }
+
